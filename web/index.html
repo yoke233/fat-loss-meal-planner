@@ -4,98 +4,137 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>减肥餐菜谱</title>
+  <script>
+    window.tailwind = {
+      config: {
+        theme: {
+          extend: {
+            colors: {
+              leaf: {
+                50: "#f0fdf4",
+                100: "#dcfce7",
+                600: "#16a34a",
+                700: "#15803d"
+              }
+            }
+          }
+        }
+      }
+    };
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="./styles.css">
 </head>
-<body>
-  <header class="app-header">
-    <div>
-      <h1>减肥餐菜谱</h1>
-      <p>创建、保存、加载自己的每日菜谱，自动计算热量和蛋白质。</p>
-    </div>
-    <div class="header-actions">
-      <button id="newRecipeBtn" type="button">新建</button>
-      <button id="saveRecipeBtn" type="button" class="primary">保存</button>
+<body class="min-h-screen bg-slate-50 text-slate-900">
+  <header class="border-b border-slate-200 bg-white/95 backdrop-blur">
+    <div class="mx-auto max-w-7xl px-4 py-4 sm:px-6">
+      <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <h1 class="text-2xl font-semibold tracking-normal text-slate-950">减肥餐菜谱</h1>
+          <p class="mt-1 text-sm text-slate-500">创建、保存、加载自己的每日菜谱，自动计算热量和三大营养素。</p>
+        </div>
+        <div class="grid grid-cols-2 gap-2 sm:flex">
+          <button id="newRecipeBtn" type="button" class="inline-flex h-10 items-center justify-center rounded-lg border border-emerald-200 bg-white px-4 text-sm font-medium text-emerald-700 hover:bg-emerald-50">
+            新建
+          </button>
+          <button id="saveRecipeBtn" type="button" class="inline-flex h-10 items-center justify-center rounded-lg bg-emerald-600 px-4 text-sm font-medium text-white hover:bg-emerald-700">
+            保存
+          </button>
+        </div>
+      </div>
     </div>
   </header>
 
-  <nav class="tabs" aria-label="页面切换">
-    <button id="recipeTab" type="button" class="tab active" data-tab="recipes">菜谱</button>
-    <button id="foodsTab" type="button" class="tab" data-tab="foods">食物热量表</button>
+  <nav class="sticky top-0 z-20 border-b border-slate-200 bg-slate-50/95 backdrop-blur" aria-label="页面切换">
+    <div class="mx-auto max-w-7xl px-4 py-3 sm:px-6">
+      <div class="inline-flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+        <button id="recipeTab" type="button" class="tab active" data-tab="recipes">菜谱</button>
+        <button id="foodsTab" type="button" class="tab" data-tab="foods">食物热量表</button>
+      </div>
+    </div>
   </nav>
 
-  <main>
+  <main class="mx-auto max-w-7xl px-4 py-4 sm:px-6">
     <section id="recipesPanel" class="tab-panel active">
-      <div class="recipe-layout">
-        <aside class="sidebar">
-          <div class="section-title">
-            <h2>菜谱列表</h2>
-            <span id="recipeCount">0 个</span>
-          </div>
-          <div id="recipeList" class="recipe-list"></div>
-          <div class="side-actions">
-            <button id="exportBtn" type="button">导出JSON</button>
-            <label class="file-button">
-              导入JSON
-              <input id="importInput" type="file" accept="application/json">
-            </label>
+      <div class="grid gap-4 xl:grid-cols-[300px_minmax(0,1fr)]">
+        <aside class="rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div class="p-4">
+            <div class="mb-3 flex items-center justify-between gap-3">
+              <h2 class="text-base font-semibold text-slate-950">菜谱列表</h2>
+              <span id="recipeCount" class="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">0 个</span>
+            </div>
+            <div id="recipeList" class="recipe-list"></div>
+            <div class="mt-4 grid grid-cols-2 gap-2">
+              <button id="exportBtn" type="button" class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                导出
+              </button>
+              <label class="file-button h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                导入
+                <input id="importInput" type="file" accept="application/json">
+              </label>
+            </div>
           </div>
         </aside>
 
-        <section class="editor">
-          <div class="editor-top">
-            <label class="name-field">
-              <span>菜谱名称</span>
-              <input id="recipeName" type="text" placeholder="例如：鸡胸土豆减脂餐">
-            </label>
-            <button id="deleteRecipeBtn" type="button" class="danger">删除当前</button>
-          </div>
+        <section class="rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div class="p-4 sm:p-5">
+            <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+              <label class="grid gap-1.5">
+                <span class="text-sm font-medium text-slate-500">菜谱名称</span>
+                <input id="recipeName" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-base outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100" type="text" placeholder="例如：鸡胸土豆减脂餐">
+              </label>
+              <button id="deleteRecipeBtn" type="button" class="h-11 rounded-lg border border-orange-200 bg-white px-4 text-sm font-medium text-orange-700 hover:bg-orange-50">
+                删除当前
+              </button>
+            </div>
 
-          <div class="summary">
-            <div>
-              <span>总热量</span>
-              <strong id="totalCalories">0 kcal</strong>
+            <div class="summary my-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+              <div class="summary-card calories">
+                <span>总热量</span>
+                <strong id="totalCalories">0 kcal</strong>
+              </div>
+              <div class="summary-card protein">
+                <span>总蛋白质</span>
+                <strong id="totalProtein">0 g</strong>
+                <small id="proteinRatio">0 kcal / 0%</small>
+              </div>
+              <div class="summary-card carbs">
+                <span>总碳水</span>
+                <strong id="totalCarbs">0 g</strong>
+                <small id="carbsRatio">0 kcal / 0%</small>
+              </div>
+              <div class="summary-card fat">
+                <span>总脂肪</span>
+                <strong id="totalFat">0 g</strong>
+                <small id="fatRatio">0 kcal / 0%</small>
+              </div>
+              <div class="summary-card target">
+                <span>目标参考</span>
+                <strong>约 1800 kcal</strong>
+              </div>
             </div>
-            <div>
-              <span>总蛋白质</span>
-              <strong id="totalProtein">0 g</strong>
-              <small id="proteinRatio">0%</small>
-            </div>
-            <div>
-              <span>总碳水</span>
-              <strong id="totalCarbs">0 g</strong>
-              <small id="carbsRatio">0%</small>
-            </div>
-            <div>
-              <span>总脂肪</span>
-              <strong id="totalFat">0 g</strong>
-              <small id="fatRatio">0%</small>
-            </div>
-            <div>
-              <span>目标参考</span>
-              <strong>约 1800 kcal</strong>
-            </div>
-          </div>
 
-          <div id="mealSections" class="meal-sections"></div>
+            <div id="mealSections" class="meal-sections"></div>
+          </div>
         </section>
       </div>
     </section>
 
     <section id="foodsPanel" class="tab-panel">
-      <div class="food-page">
-        <div class="food-toolbar">
-          <div class="section-title">
-            <h2>食物热量表</h2>
-            <span id="foodCount">0 个</span>
+      <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+        <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-end">
+          <div class="flex items-center gap-2">
+            <h2 class="text-base font-semibold text-slate-950">食物热量表</h2>
+            <span id="foodCount" class="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">0 个</span>
           </div>
-          <label class="search-field">
-            <span>搜索</span>
-            <input id="foodSearch" type="search" placeholder="输入食物、分类或备注">
+          <label class="grid gap-1.5">
+            <span class="text-sm font-medium text-slate-500">搜索</span>
+            <input id="foodSearch" class="h-10 rounded-lg border border-slate-200 bg-white px-3 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100" type="search" placeholder="输入食物、分类或备注">
           </label>
         </div>
 
-        <div class="table-wrap">
-          <table class="food-table">
+        <div class="mt-4 overflow-x-auto rounded-xl border border-slate-200">
+          <table class="food-table min-w-[1080px] w-full text-left text-sm">
             <thead>
               <tr>
                 <th>分类</th>
