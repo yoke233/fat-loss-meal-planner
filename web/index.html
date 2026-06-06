@@ -238,15 +238,15 @@
                 </select>
               </label>
 
-              <label class="field" style="margin-top: 12px;">
+              <div class="field" style="margin-top: 12px;">
                 <span class="field__label">备餐天数</span>
                 <div class="days-control">
-                  <button type="button" class="days-btn" @click="prepDays = Math.max(1, (Number(prepDays)||1) - 1)" aria-label="减少">−</button>
-                  <input class="input days-input" type="number" min="1" max="30" v-model.number="prepDays">
-                  <button type="button" class="days-btn" @click="prepDays = Math.min(30, (Number(prepDays)||1) + 1)" aria-label="增加">+</button>
+                  <button type="button" class="days-btn" @click="prepDays = Math.max(1, (Number(prepDays)||1) - 1)" aria-label="减少天数">−</button>
+                  <input class="input days-input" type="number" min="1" max="30" v-model.number="prepDays" aria-label="备餐天数">
+                  <button type="button" class="days-btn" @click="prepDays = Math.min(30, (Number(prepDays)||1) + 1)" aria-label="增加天数">+</button>
                   <span class="muted" style="margin-left: 6px;">天</span>
                 </div>
-              </label>
+              </div>
 
               <div class="field" style="margin-top: 12px;">
                 <div class="row" style="justify-content: space-between;">
