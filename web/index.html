@@ -2,71 +2,78 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>减肥餐菜谱</title>
-  <script>
-    window.tailwind = {
-      config: {
-        theme: {
-          extend: {
-            colors: {
-              leaf: {
-                50: "#f0fdf4",
-                100: "#dcfce7",
-                600: "#16a34a",
-                700: "#15803d"
-              }
-            }
-          }
-        }
-      }
-    };
-  </script>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#2f9e6b">
+  <title>减肥餐菜谱 · 营养计算器</title>
   <link rel="stylesheet" href="./styles.css">
 </head>
-<body class="min-h-screen bg-slate-50 text-slate-900">
+<body>
   <div id="app">
-    <header class="border-b border-slate-200 bg-white/95 backdrop-blur">
-      <div class="mx-auto max-w-7xl px-4 py-4 sm:px-6">
-        <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <h1 class="text-2xl font-semibold tracking-normal text-slate-950">减肥餐菜谱</h1>
-            <p class="mt-1 text-sm text-slate-500">创建、保存、加载自己的每日菜谱，自动计算热量和三大营养素。</p>
+    <header class="app-header">
+      <div class="shell">
+        <div class="app-header__row">
+          <div class="brand">
+            <div class="brand__logo" aria-hidden="true">🥗</div>
+            <div>
+              <h1 class="brand__title">减肥餐菜谱</h1>
+              <div class="brand__subtitle">创建、保存每日菜谱，自动计算热量与三大营养素</div>
+            </div>
           </div>
-          <div class="grid grid-cols-2 gap-2 sm:flex">
-            <button type="button" class="inline-flex h-10 items-center justify-center rounded-lg border border-emerald-200 bg-white px-4 text-sm font-medium text-emerald-700 hover:bg-emerald-50" @click="newRecipe">
-              新建
-            </button>
-            <button type="button" class="inline-flex h-10 items-center justify-center rounded-lg bg-emerald-600 px-4 text-sm font-medium text-white hover:bg-emerald-700" @click="saveRecipe">
-              保存
-            </button>
+          <div class="header-actions">
+            <button type="button" class="btn btn-ghost" @click="newRecipe" aria-label="新建菜谱">＋ 新建</button>
+            <button type="button" class="btn btn-primary" @click="saveRecipe" aria-label="保存菜谱">保存</button>
           </div>
         </div>
       </div>
     </header>
 
-    <nav class="sticky top-0 z-20 border-b border-slate-200 bg-slate-50/95 backdrop-blur" aria-label="页面切换">
-      <div class="mx-auto max-w-7xl px-4 py-3 sm:px-6">
-        <div class="inline-flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
-          <button type="button" class="tab" :class="{ active: activeTab === 'recipes' }" @click="activeTab = 'recipes'">菜谱</button>
-          <button type="button" class="tab" :class="{ active: activeTab === 'foods' }" @click="activeTab = 'foods'">食物热量表</button>
+    <div class="tabs-wrap">
+      <div class="shell">
+        <div class="tabs" role="tablist" aria-label="页面切换">
+          <button type="button" class="tab" :class="{ active: activeTab === 'recipes' }" @click="activeTab = 'recipes'" role="tab" :aria-selected="activeTab === 'recipes'">🍱 菜谱</button>
+          <button type="button" class="tab" :class="{ active: activeTab === 'foods' }" @click="activeTab = 'foods'" role="tab" :aria-selected="activeTab === 'foods'">📋 食物热量表</button>
         </div>
       </div>
-    </nav>
+    </div>
 
-    <main class="mx-auto max-w-7xl px-4 py-4 sm:px-6">
+    <main class="shell">
+      <!-- ============ 菜谱 ============ -->
       <section class="tab-panel" :class="{ active: activeTab === 'recipes' }">
-        <div class="grid gap-4 xl:grid-cols-[300px_minmax(0,1fr)]">
-          <aside class="rounded-xl border border-slate-200 bg-white shadow-sm">
-            <div class="p-4">
-              <div class="mb-3 flex items-center justify-between gap-3">
-                <h2 class="text-base font-semibold text-slate-950">菜谱列表</h2>
-                <span class="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">{{ recipes.length }} 个</span>
-              </div>
 
-              <div class="recipe-list">
-                <p v-if="recipes.length === 0" class="text-sm text-slate-500">还没有菜谱</p>
+        <!-- Mobile: horizontal recipe chips -->
+        <div class="recipe-scroller-wrap">
+          <div class="recipe-scroller" role="tablist" aria-label="菜谱列表">
+            <button
+              v-for="recipe in recipes"
+              :key="recipe.id"
+              type="button"
+              class="recipe-chip"
+              :class="{ active: recipe.id === currentId }"
+              @click="currentId = recipe.id"
+            >
+              <span class="recipe-chip__name">{{ recipe.name }}</span>
+              <span class="recipe-chip__meta">约 {{ round(calculateRecipe(recipe).calories) }} kcal</span>
+            </button>
+          </div>
+          <div class="recipe-actions-row">
+            <button type="button" class="btn btn-line" @click="exportRecipes">导出</button>
+            <label class="btn btn-line file-button">
+              导入
+              <input type="file" accept="application/json" @change="importRecipes">
+            </label>
+            <button type="button" class="btn btn-ghost" @click="newRecipe">＋ 新菜谱</button>
+          </div>
+        </div>
+
+        <div class="layout">
+          <!-- Desktop: sidebar -->
+          <aside class="card recipe-card-desktop">
+            <div class="card__head">
+              <h2 class="card__title">菜谱列表</h2>
+              <span class="badge">{{ recipes.length }} 个</span>
+            </div>
+            <div class="card__body">
+              <div class="recipe-list" v-if="recipes.length">
                 <button
                   v-for="recipe in recipes"
                   :key="recipe.id"
@@ -75,16 +82,21 @@
                   :class="{ active: recipe.id === currentId }"
                   @click="currentId = recipe.id"
                 >
-                  <strong>{{ recipe.name }}</strong>
-                  <span>约 {{ round(calculateRecipe(recipe).calories) }} kcal</span>
+                  <span class="recipe-item__name">{{ recipe.name }}</span>
+                  <span class="recipe-item__meta">
+                    <span class="recipe-item__dot"></span>
+                    约 {{ round(calculateRecipe(recipe).calories) }} kcal · 蛋白 {{ round(calculateRecipe(recipe).protein) }} g
+                  </span>
                 </button>
               </div>
+              <div v-else class="empty">
+                <div class="empty__icon">🍽️</div>
+                <div>还没有菜谱，点击"新建"开始</div>
+              </div>
 
-              <div class="mt-4 grid grid-cols-2 gap-2">
-                <button type="button" class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50" @click="exportRecipes">
-                  导出
-                </button>
-                <label class="file-button h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50">
+              <div class="row" style="margin-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                <button type="button" class="btn btn-line" @click="exportRecipes">导出</button>
+                <label class="btn btn-line file-button">
                   导入
                   <input type="file" accept="application/json" @change="importRecipes">
                 </label>
@@ -92,120 +104,185 @@
             </div>
           </aside>
 
-          <section class="rounded-xl border border-slate-200 bg-white shadow-sm">
-            <div class="p-4 sm:p-5">
-              <template v-if="currentRecipe">
-                <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
-                  <label class="grid gap-1.5">
-                    <span class="text-sm font-medium text-slate-500">菜谱名称</span>
-                    <input class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-base outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100" type="text" placeholder="例如：鸡胸土豆减脂餐" v-model="currentRecipe.name" @input="persist">
-                  </label>
-                  <button type="button" class="h-11 rounded-lg border border-orange-200 bg-white px-4 text-sm font-medium text-orange-700 hover:bg-orange-50" @click="deleteCurrentRecipe">
-                    删除当前
-                  </button>
+          <!-- Editor -->
+          <section class="card">
+            <div class="card__body" v-if="currentRecipe">
+              <div class="editor-head">
+                <label class="field">
+                  <span class="field__label">菜谱名称</span>
+                  <input class="input input--lg" type="text" placeholder="例如：鸡胸土豆减脂餐" v-model="currentRecipe.name" @input="persist">
+                </label>
+                <button type="button" class="btn btn-danger" @click="deleteCurrentRecipe">删除当前</button>
+              </div>
+
+              <div class="macro-grid">
+                <div class="macro-card calories">
+                  <div class="macro-card__label">总热量</div>
+                  <strong class="macro-card__value">{{ round(currentTotals.calories) }} kcal</strong>
+                  <small class="macro-card__sub">目标 {{ targetCalories }} kcal · {{ targetPercent }}%</small>
                 </div>
-
-                <div class="summary my-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-                  <div class="summary-card calories">
-                    <span>总热量</span>
-                    <strong>{{ round(currentTotals.calories) }} kcal</strong>
-                  </div>
-                  <div class="summary-card protein">
-                    <span>总蛋白质</span>
-                    <strong>{{ round(currentTotals.protein) }} g</strong>
-                    <small>{{ round(macroCalories.protein) }} kcal / {{ macroRatio(macroCalories.protein) }}</small>
-                  </div>
-                  <div class="summary-card carbs">
-                    <span>总碳水</span>
-                    <strong>{{ round(currentTotals.carbs) }} g</strong>
-                    <small>{{ round(macroCalories.carbs) }} kcal / {{ macroRatio(macroCalories.carbs) }}</small>
-                  </div>
-                  <div class="summary-card fat">
-                    <span>总脂肪</span>
-                    <strong>{{ round(currentTotals.fat) }} g</strong>
-                    <small>{{ round(macroCalories.fat) }} kcal / {{ macroRatio(macroCalories.fat) }}</small>
-                  </div>
-                  <div class="summary-card target">
-                    <span>目标参考</span>
-                    <strong>约 1800 kcal</strong>
-                  </div>
+                <div class="macro-card protein">
+                  <div class="macro-card__label">蛋白质</div>
+                  <strong class="macro-card__value">{{ round(currentTotals.protein) }} g</strong>
+                  <small class="macro-card__sub">{{ round(macroCalories.protein) }} kcal · {{ macroRatio(macroCalories.protein) }}</small>
                 </div>
+                <div class="macro-card carbs">
+                  <div class="macro-card__label">碳水</div>
+                  <strong class="macro-card__value">{{ round(currentTotals.carbs) }} g</strong>
+                  <small class="macro-card__sub">{{ round(macroCalories.carbs) }} kcal · {{ macroRatio(macroCalories.carbs) }}</small>
+                </div>
+                <div class="macro-card fat">
+                  <div class="macro-card__label">脂肪</div>
+                  <strong class="macro-card__value">{{ round(currentTotals.fat) }} g</strong>
+                  <small class="macro-card__sub">{{ round(macroCalories.fat) }} kcal · {{ macroRatio(macroCalories.fat) }}</small>
+                </div>
+              </div>
 
-                <div class="meal-sections">
-                  <section v-for="meal in meals" :key="meal" class="meal">
-                    <div class="meal-head">
-                      <h3>{{ meal }}<span>{{ round(calculateMeal(currentRecipe.meals[meal] || []).calories) }} kcal</span></h3>
-                      <button type="button" class="add-food" @click="addFood(meal)">添加食物</button>
-                    </div>
+              <div class="macro-bar" :aria-label="`蛋白 ${macroRatio(macroCalories.protein)} 碳水 ${macroRatio(macroCalories.carbs)} 脂肪 ${macroRatio(macroCalories.fat)}`">
+                <span class="macro-bar__p" :style="{ width: rawRatio(macroCalories.protein) + '%' }"></span>
+                <span class="macro-bar__c" :style="{ width: rawRatio(macroCalories.carbs) + '%' }"></span>
+                <span class="macro-bar__f" :style="{ width: rawRatio(macroCalories.fat) + '%' }"></span>
+              </div>
+              <div class="macro-bar-legend">
+                <span><i style="background: var(--protein)"></i>蛋白 {{ macroRatio(macroCalories.protein) }}</span>
+                <span><i style="background: var(--carbs)"></i>碳水 {{ macroRatio(macroCalories.carbs) }}</span>
+                <span><i style="background: var(--fat)"></i>脂肪 {{ macroRatio(macroCalories.fat) }}</span>
+                <span class="target-edit">
+                  目标 <input type="number" min="500" max="5000" step="50" v-model.number="targetCalories" @change="persistTarget"> kcal
+                </span>
+              </div>
 
-                    <div class="food-rows">
-                      <div v-for="(entry, index) in currentRecipe.meals[meal]" :key="index" class="food-row">
-                        <input class="food-select" type="search" list="foodOptions" placeholder="搜索或输入食物" :value="entry.food || entry.customName" @input="updateFoodName(entry, $event.target.value)">
+              <div class="meals">
+                <section v-for="meal in meals" :key="meal" class="meal">
+                  <div class="meal__head">
+                    <h3 class="meal__title">{{ meal }}<span class="meal__kcal">{{ round(calculateMeal(currentRecipe.meals[meal] || []).calories) }} kcal</span></h3>
+                    <button type="button" class="add-food" @click="addFood(meal)">＋ 添加食物</button>
+                  </div>
+
+                  <div class="food-rows">
+                    <div v-for="(entry, index) in currentRecipe.meals[meal]" :key="index" class="food-row">
+                      <label class="food-field food-select">
+                        <span class="food-field__label">食物</span>
+                        <input type="search" list="foodOptions" placeholder="搜索或输入食物" :value="entry.food || entry.customName" @input="updateFoodName(entry, $event.target.value)">
+                      </label>
+                      <label class="food-field">
+                        <span class="food-field__label">数量</span>
                         <input class="quantity" type="number" min="0" step="0.1" placeholder="数量" v-model.number="entry.quantity" @input="updateEntry(entry)">
+                      </label>
+                      <label class="food-field">
+                        <span class="food-field__label">单位</span>
                         <select class="unit-select" v-model="entry.unit" @change="updateEntry(entry)">
                           <option v-for="unit in getUnitOptionsForEntry(entry)" :key="unit" :value="unit">{{ unit }}</option>
                         </select>
-                        <output class="weight-total">折算 {{ round(entry.amount) }} g</output>
-                        <input class="cal-per-100" type="number" min="0" step="1" placeholder="kcal/100g" v-model.number="entry.calories" @input="updateEntry(entry)">
-                        <input class="protein-per-100" type="number" min="0" step="0.1" placeholder="蛋白/100g" v-model.number="entry.protein" @input="updateEntry(entry)">
-                        <input class="carbs-per-100" type="number" min="0" step="0.1" placeholder="碳水/100g" v-model.number="entry.carbs" @input="updateEntry(entry)">
-                        <input class="fat-per-100" type="number" min="0" step="0.1" placeholder="脂肪/100g" v-model.number="entry.fat" @input="updateEntry(entry)">
-                        <output class="row-total">{{ round(entry.amount * entry.calories / 100) }} kcal / 蛋白 {{ round(entry.amount * entry.protein / 100) }} g</output>
-                        <button type="button" class="remove-row" @click="removeFood(meal, index)">删除</button>
-                      </div>
+                      </label>
+                      <output class="weight-total">折算 {{ round(entry.amount) }} {{ weightUnit(entry) }}</output>
+                      <label class="food-field">
+                        <span class="food-field__label">热量 /100{{ weightUnit(entry) }}</span>
+                        <input class="cal-per-100" type="number" min="0" step="1" placeholder="kcal" v-model.number="entry.calories" @input="updateEntry(entry)">
+                      </label>
+                      <label class="food-field">
+                        <span class="food-field__label">蛋白 /100{{ weightUnit(entry) }}</span>
+                        <input class="protein-per-100" type="number" min="0" step="0.1" placeholder="g" v-model.number="entry.protein" @input="updateEntry(entry)">
+                      </label>
+                      <label class="food-field">
+                        <span class="food-field__label">碳水 /100{{ weightUnit(entry) }}</span>
+                        <input class="carbs-per-100" type="number" min="0" step="0.1" placeholder="g" v-model.number="entry.carbs" @input="updateEntry(entry)">
+                      </label>
+                      <label class="food-field">
+                        <span class="food-field__label">脂肪 /100{{ weightUnit(entry) }}</span>
+                        <input class="fat-per-100" type="number" min="0" step="0.1" placeholder="g" v-model.number="entry.fat" @input="updateEntry(entry)">
+                      </label>
+                      <output class="row-total">{{ round(entry.amount * entry.calories / 100) }} kcal · 蛋白 {{ round(entry.amount * entry.protein / 100) }} g</output>
+                      <button type="button" class="remove-row" @click="removeFood(meal, index)">删除</button>
                     </div>
-                  </section>
-                </div>
-              </template>
+                    <div v-if="!currentRecipe.meals[meal] || currentRecipe.meals[meal].length === 0" class="empty" style="padding: 18px;">
+                      <div class="empty__icon">＋</div>
+                      <div>还没有食物，点击"添加食物"</div>
+                    </div>
+                  </div>
+                </section>
+              </div>
+            </div>
 
-              <p v-else class="text-sm text-slate-500">还没有菜谱。</p>
+            <div class="card__body" v-else>
+              <div class="empty">
+                <div class="empty__icon">🍽️</div>
+                <div>还没有菜谱，点击右上"新建"开始。</div>
+              </div>
             </div>
           </section>
         </div>
       </section>
 
+      <!-- ============ 食物热量表 ============ -->
       <section class="tab-panel" :class="{ active: activeTab === 'foods' }">
-        <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-          <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-end">
-            <div class="flex items-center gap-2">
-              <h2 class="text-base font-semibold text-slate-950">食物热量表</h2>
-              <span class="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">{{ filteredFoods.length }} 个</span>
-            </div>
-            <label class="grid gap-1.5">
-              <span class="text-sm font-medium text-slate-500">搜索</span>
-              <input class="h-10 rounded-lg border border-slate-200 bg-white px-3 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100" type="search" placeholder="输入食物、分类或备注" v-model="foodSearch">
-            </label>
+        <div class="card">
+          <div class="card__head">
+            <h2 class="card__title">食物热量表</h2>
+            <span class="badge">{{ filteredFoods.length }} 个</span>
           </div>
+          <div class="card__body">
+            <div class="search-bar">
+              <div class="search-input">
+                <input type="search" placeholder="搜索食物名称、分类或备注" v-model="foodSearch">
+              </div>
+            </div>
 
-          <div class="mt-4 overflow-x-auto rounded-xl border border-slate-200">
-            <table class="food-table min-w-[1080px] w-full text-left text-sm">
-              <thead>
-                <tr>
-                  <th>分类</th>
-                  <th>食物</th>
-                  <th>每100g/ml热量</th>
-                  <th>每100g/ml蛋白质</th>
-                  <th>每100g/ml碳水</th>
-                  <th>每100g/ml脂肪</th>
-                  <th>默认单位</th>
-                  <th>每单位重量</th>
-                  <th>备注</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="food in filteredFoods" :key="food.name">
-                  <td>{{ food.category }}</td>
-                  <td>{{ food.name }}</td>
-                  <td>{{ food.calories }} kcal</td>
-                  <td>{{ food.protein }} g</td>
-                  <td>{{ getFoodMacros(food.name).carbs }} g</td>
-                  <td>{{ getFoodMacros(food.name).fat }} g</td>
-                  <td>{{ getFoodMeta(food.name).unit }}</td>
-                  <td>{{ getFoodMeta(food.name).unitWeight }} g</td>
-                  <td>{{ food.note }}</td>
-                </tr>
-              </tbody>
-            </table>
+            <!-- Desktop table -->
+            <div class="food-table-wrap">
+              <table class="food-table">
+                <thead>
+                  <tr>
+                    <th>分类</th>
+                    <th>食物</th>
+                    <th>热量 /100g·ml</th>
+                    <th>蛋白质 /100g·ml</th>
+                    <th>碳水 /100g·ml</th>
+                    <th>脂肪 /100g·ml</th>
+                    <th>默认单位</th>
+                    <th>每单位重量</th>
+                    <th>备注</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="food in filteredFoods" :key="food.name">
+                    <td><span class="food-cat-tag">{{ food.category }}</span></td>
+                    <td><strong>{{ food.name }}</strong></td>
+                    <td>{{ food.calories }} kcal</td>
+                    <td>{{ food.protein }} g</td>
+                    <td>{{ getFoodMacros(food.name).carbs }} g</td>
+                    <td>{{ getFoodMacros(food.name).fat }} g</td>
+                    <td>{{ getFoodMeta(food.name).unit }}</td>
+                    <td>{{ getFoodMeta(food.name).unitWeight }} g</td>
+                    <td class="muted">{{ food.note }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Mobile cards -->
+            <div class="food-cards">
+              <div v-for="food in filteredFoods" :key="food.name" class="food-card">
+                <div class="food-card__head">
+                  <div>
+                    <div class="food-card__name">{{ food.name }}</div>
+                    <span class="food-cat-tag">{{ food.category }}</span>
+                  </div>
+                  <strong style="color: var(--primary-strong)">{{ food.calories }} kcal</strong>
+                </div>
+                <div class="food-card__note" v-if="food.note">备注：{{ food.note }}</div>
+                <div class="food-card__macros">
+                  <span><small>蛋白</small>{{ food.protein }} g</span>
+                  <span><small>碳水</small>{{ getFoodMacros(food.name).carbs }} g</span>
+                  <span><small>脂肪</small>{{ getFoodMacros(food.name).fat }} g</span>
+                  <span><small>单位</small>{{ getFoodMeta(food.name).unit }} ({{ getFoodMeta(food.name).unitWeight }} g)</span>
+                </div>
+              </div>
+              <div v-if="filteredFoods.length === 0" class="empty">
+                <div class="empty__icon">🔍</div>
+                <div>没有匹配的食物</div>
+              </div>
+            </div>
           </div>
         </div>
       </section>

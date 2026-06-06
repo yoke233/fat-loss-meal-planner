@@ -1,4 +1,5 @@
 const STORAGE_KEY = "fat_loss_recipes_v1";
+const TARGET_KEY = "fat_loss_target_v1";
 const MEALS = ["早餐", "午餐", "下午加餐", "晚餐"];
 
 const FOODS = [
@@ -346,7 +347,8 @@ createApp({
       foods: FOODS,
       recipes: [],
       currentId: null,
-      foodSearch: ""
+      foodSearch: "",
+      targetCalories: 1800
     };
   },
   computed: {
@@ -366,6 +368,10 @@ createApp({
     macroCalorieTotal() {
       return this.macroCalories.protein + this.macroCalories.carbs + this.macroCalories.fat;
     },
+    targetPercent() {
+      if (!this.targetCalories) return 0;
+      return Math.round(this.currentTotals.calories / this.targetCalories * 100);
+    },
     filteredFoods() {
       const keyword = this.foodSearch.trim().toLowerCase();
       return this.foods.filter((food) => {
@@ -378,6 +384,7 @@ createApp({
   },
   mounted() {
     this.loadRecipes();
+    this.loadTarget();
   },
   methods: {
     round,
@@ -385,12 +392,31 @@ createApp({
     calculateRecipe,
     getFoodMeta,
     getFoodMacros,
+    weightUnit(entry) {
+      const meta = entry.food ? getFoodMeta(entry.food) : null;
+      if (meta && meta.unit === "ml") return "ml";
+      if (entry.unit === "ml") return "ml";
+      return "g";
+    },
     macroRatio(value) {
       if (!this.macroCalorieTotal) return "0%";
       return `${Math.round(value / this.macroCalorieTotal * 100)}%`;
     },
+    rawRatio(value) {
+      if (!this.macroCalorieTotal) return 0;
+      return value / this.macroCalorieTotal * 100;
+    },
     persist() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(this.recipes));
+    },
+    loadTarget() {
+      const saved = Number(localStorage.getItem(TARGET_KEY));
+      if (saved && saved >= 500 && saved <= 5000) this.targetCalories = saved;
+    },
+    persistTarget() {
+      const value = Number(this.targetCalories) || 1800;
+      this.targetCalories = Math.max(500, Math.min(5000, value));
+      localStorage.setItem(TARGET_KEY, String(this.targetCalories));
     },
     loadRecipes() {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -454,8 +480,8 @@ createApp({
     },
     getUnitOptions(name) {
       const meta = getFoodMeta(name);
-      const options = [meta.unit, "g", "ml"];
-      if (["个", "根", "片"].includes(meta.unit)) options.push(meta.unit);
+      const base = meta.unit === "ml" ? ["ml", "g"] : ["g", "ml"];
+      const options = [meta.unit, ...base];
       return [...new Set(options)];
     },
     updateFoodName(entry, typedValue) {
