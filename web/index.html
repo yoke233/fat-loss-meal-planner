@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>减肥餐菜谱</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <header class="app-header">
+    <div>
+      <h1>减肥餐菜谱</h1>
+      <p>创建、保存、加载自己的每日菜谱，自动计算热量和蛋白质。</p>
+    </div>
+    <div class="header-actions">
+      <button id="newRecipeBtn" type="button">新建</button>
+      <button id="saveRecipeBtn" type="button" class="primary">保存</button>
+    </div>
+  </header>
+
+  <nav class="tabs" aria-label="页面切换">
+    <button id="recipeTab" type="button" class="tab active" data-tab="recipes">菜谱</button>
+    <button id="foodsTab" type="button" class="tab" data-tab="foods">食物热量表</button>
+  </nav>
+
+  <main>
+    <section id="recipesPanel" class="tab-panel active">
+      <div class="recipe-layout">
+        <aside class="sidebar">
+          <div class="section-title">
+            <h2>菜谱列表</h2>
+            <span id="recipeCount">0 个</span>
+          </div>
+          <div id="recipeList" class="recipe-list"></div>
+          <div class="side-actions">
+            <button id="exportBtn" type="button">导出JSON</button>
+            <label class="file-button">
+              导入JSON
+              <input id="importInput" type="file" accept="application/json">
+            </label>
+          </div>
+        </aside>
+
+        <section class="editor">
+          <div class="editor-top">
+            <label class="name-field">
+              <span>菜谱名称</span>
+              <input id="recipeName" type="text" placeholder="例如：鸡胸土豆减脂餐">
+            </label>
+            <button id="deleteRecipeBtn" type="button" class="danger">删除当前</button>
+          </div>
+
+          <div class="summary">
+            <div>
+              <span>总热量</span>
+              <strong id="totalCalories">0 kcal</strong>
+            </div>
+            <div>
+              <span>总蛋白质</span>
+              <strong id="totalProtein">0 g</strong>
+              <small id="proteinRatio">0%</small>
+            </div>
+            <div>
+              <span>总碳水</span>
+              <strong id="totalCarbs">0 g</strong>
+              <small id="carbsRatio">0%</small>
+            </div>
+            <div>
+              <span>总脂肪</span>
+              <strong id="totalFat">0 g</strong>
+              <small id="fatRatio">0%</small>
+            </div>
+            <div>
+              <span>目标参考</span>
+              <strong>约 1800 kcal</strong>
+            </div>
+          </div>
+
+          <div id="mealSections" class="meal-sections"></div>
+        </section>
+      </div>
+    </section>
+
+    <section id="foodsPanel" class="tab-panel">
+      <div class="food-page">
+        <div class="food-toolbar">
+          <div class="section-title">
+            <h2>食物热量表</h2>
+            <span id="foodCount">0 个</span>
+          </div>
+          <label class="search-field">
+            <span>搜索</span>
+            <input id="foodSearch" type="search" placeholder="输入食物、分类或备注">
+          </label>
+        </div>
+
+        <div class="table-wrap">
+          <table class="food-table">
+            <thead>
+              <tr>
+                <th>分类</th>
+                <th>食物</th>
+                <th>每100g/ml热量</th>
+                <th>每100g/ml蛋白质</th>
+                <th>每100g/ml碳水</th>
+                <th>每100g/ml脂肪</th>
+                <th>默认单位</th>
+                <th>每单位重量</th>
+                <th>备注</th>
+              </tr>
+            </thead>
+            <tbody id="foodTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <template id="mealTemplate">
+    <section class="meal">
+      <div class="meal-head">
+        <h3></h3>
+        <button type="button" class="add-food">添加食物</button>
+      </div>
+      <div class="food-rows"></div>
+    </section>
+  </template>
+
+  <template id="foodRowTemplate">
+    <div class="food-row">
+      <input class="food-select" type="search" list="foodOptions" placeholder="搜索或输入食物">
+      <input class="quantity" type="number" min="0" step="0.1" placeholder="数量">
+      <select class="unit-select"></select>
+      <output class="weight-total">折算 0 g</output>
+      <input class="cal-per-100" type="number" min="0" step="1" placeholder="kcal/100g">
+      <input class="protein-per-100" type="number" min="0" step="0.1" placeholder="蛋白/100g">
+      <input class="carbs-per-100" type="number" min="0" step="0.1" placeholder="碳水/100g">
+      <input class="fat-per-100" type="number" min="0" step="0.1" placeholder="脂肪/100g">
+      <output class="row-total">0 kcal / 蛋白 0 g</output>
+      <button type="button" class="remove-row">删除</button>
+    </div>
+  </template>
+
+  <datalist id="foodOptions"></datalist>
+
+  <script src="./app.js"></script>
+</body>
+</html>
