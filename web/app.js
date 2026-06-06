@@ -1,5 +1,6 @@
 const STORAGE_KEY = "fat_loss_recipes_v1";
 const TARGET_KEY = "fat_loss_target_v1";
+const ADVANCED_KEY = "fat_loss_advanced_v1";
 const MEALS = ["早餐", "午餐", "下午加餐", "晚餐"];
 
 const FOODS = [
@@ -348,7 +349,8 @@ createApp({
       recipes: [],
       currentId: null,
       foodSearch: "",
-      targetCalories: 1800
+      targetCalories: 1800,
+      showAdvanced: false
     };
   },
   computed: {
@@ -385,6 +387,7 @@ createApp({
   mounted() {
     this.loadRecipes();
     this.loadTarget();
+    this.loadAdvanced();
   },
   methods: {
     round,
@@ -417,6 +420,13 @@ createApp({
       const value = Number(this.targetCalories) || 1800;
       this.targetCalories = Math.max(500, Math.min(5000, value));
       localStorage.setItem(TARGET_KEY, String(this.targetCalories));
+    },
+    loadAdvanced() {
+      this.showAdvanced = localStorage.getItem(ADVANCED_KEY) === "1";
+    },
+    toggleAdvanced() {
+      this.showAdvanced = !this.showAdvanced;
+      localStorage.setItem(ADVANCED_KEY, this.showAdvanced ? "1" : "0");
     },
     loadRecipes() {
       const saved = localStorage.getItem(STORAGE_KEY);

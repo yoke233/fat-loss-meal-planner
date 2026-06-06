@@ -150,6 +150,10 @@
                 <span class="target-edit">
                   目标 <input type="number" min="500" max="5000" step="50" v-model.number="targetCalories" @change="persistTarget"> kcal
                 </span>
+                <button type="button" class="adv-toggle" :class="{ active: showAdvanced }" @click="toggleAdvanced" :aria-pressed="showAdvanced">
+                  <span class="adv-toggle__dot"></span>
+                  高级参数
+                </button>
               </div>
 
               <div class="meals">
@@ -160,7 +164,7 @@
                   </div>
 
                   <div class="food-rows">
-                    <div v-for="(entry, index) in currentRecipe.meals[meal]" :key="index" class="food-row">
+                    <div v-for="(entry, index) in currentRecipe.meals[meal]" :key="index" class="food-row" :class="{ 'food-row--simple': !showAdvanced }">
                       <label class="food-field food-select">
                         <span class="food-field__label">食物</span>
                         <input type="search" list="foodOptions" placeholder="搜索或输入食物" :value="entry.food || entry.customName" @input="updateFoodName(entry, $event.target.value)">
@@ -175,20 +179,20 @@
                           <option v-for="unit in getUnitOptionsForEntry(entry)" :key="unit" :value="unit">{{ unit }}</option>
                         </select>
                       </label>
-                      <output class="weight-total">折算 {{ round(entry.amount) }} {{ weightUnit(entry) }}</output>
-                      <label class="food-field">
+                      <output class="weight-total" v-if="showAdvanced">折算 {{ round(entry.amount) }} {{ weightUnit(entry) }}</output>
+                      <label class="food-field" v-if="showAdvanced">
                         <span class="food-field__label">热量 /100{{ weightUnit(entry) }}</span>
                         <input class="cal-per-100" type="number" min="0" step="1" placeholder="kcal" v-model.number="entry.calories" @input="updateEntry(entry)">
                       </label>
-                      <label class="food-field">
+                      <label class="food-field" v-if="showAdvanced">
                         <span class="food-field__label">蛋白 /100{{ weightUnit(entry) }}</span>
                         <input class="protein-per-100" type="number" min="0" step="0.1" placeholder="g" v-model.number="entry.protein" @input="updateEntry(entry)">
                       </label>
-                      <label class="food-field">
+                      <label class="food-field" v-if="showAdvanced">
                         <span class="food-field__label">碳水 /100{{ weightUnit(entry) }}</span>
                         <input class="carbs-per-100" type="number" min="0" step="0.1" placeholder="g" v-model.number="entry.carbs" @input="updateEntry(entry)">
                       </label>
-                      <label class="food-field">
+                      <label class="food-field" v-if="showAdvanced">
                         <span class="food-field__label">脂肪 /100{{ weightUnit(entry) }}</span>
                         <input class="fat-per-100" type="number" min="0" step="0.1" placeholder="g" v-model.number="entry.fat" @input="updateEntry(entry)">
                       </label>
