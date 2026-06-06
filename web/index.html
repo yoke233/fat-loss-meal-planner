@@ -31,6 +31,7 @@
       <div class="shell">
         <div class="tabs" role="tablist" aria-label="页面切换">
           <button type="button" class="tab" :class="{ active: activeTab === 'recipes' }" @click="activeTab = 'recipes'" role="tab" :aria-selected="activeTab === 'recipes'">🍱 菜谱</button>
+          <button type="button" class="tab" :class="{ active: activeTab === 'prep' }" @click="activeTab = 'prep'" role="tab" :aria-selected="activeTab === 'prep'">🛒 备餐采购</button>
           <button type="button" class="tab" :class="{ active: activeTab === 'foods' }" @click="activeTab = 'foods'" role="tab" :aria-selected="activeTab === 'foods'">📋 食物热量表</button>
         </div>
       </div>
@@ -164,40 +165,42 @@
                   </div>
 
                   <div class="food-rows">
-                    <div v-for="(entry, index) in currentRecipe.meals[meal]" :key="index" class="food-row" :class="{ 'food-row--simple': !showAdvanced }">
-                      <label class="food-field food-select">
+                    <div v-for="(entry, index) in currentRecipe.meals[meal]" :key="index" class="food-row" :class="{ 'food-row--simple': !showAdvanced, 'food-row--advanced': showAdvanced }">
+                      <label class="food-field food-field--food">
                         <span class="food-field__label">食物</span>
                         <input type="search" list="foodOptions" placeholder="搜索或输入食物" :value="entry.food || entry.customName" @input="updateFoodName(entry, $event.target.value)">
                       </label>
-                      <label class="food-field">
+                      <label class="food-field food-field--qty">
                         <span class="food-field__label">数量</span>
                         <input class="quantity" type="number" min="0" step="0.1" placeholder="数量" v-model.number="entry.quantity" @input="updateEntry(entry)">
                       </label>
-                      <label class="food-field">
+                      <label class="food-field food-field--unit">
                         <span class="food-field__label">单位</span>
                         <select class="unit-select" v-model="entry.unit" @change="updateEntry(entry)">
                           <option v-for="unit in getUnitOptionsForEntry(entry)" :key="unit" :value="unit">{{ unit }}</option>
                         </select>
                       </label>
-                      <output class="weight-total" v-if="showAdvanced">折算 {{ round(entry.amount) }} {{ weightUnit(entry) }}</output>
-                      <label class="food-field" v-if="showAdvanced">
-                        <span class="food-field__label">热量 /100{{ weightUnit(entry) }}</span>
-                        <input class="cal-per-100" type="number" min="0" step="1" placeholder="kcal" v-model.number="entry.calories" @input="updateEntry(entry)">
-                      </label>
-                      <label class="food-field" v-if="showAdvanced">
-                        <span class="food-field__label">蛋白 /100{{ weightUnit(entry) }}</span>
-                        <input class="protein-per-100" type="number" min="0" step="0.1" placeholder="g" v-model.number="entry.protein" @input="updateEntry(entry)">
-                      </label>
-                      <label class="food-field" v-if="showAdvanced">
-                        <span class="food-field__label">碳水 /100{{ weightUnit(entry) }}</span>
-                        <input class="carbs-per-100" type="number" min="0" step="0.1" placeholder="g" v-model.number="entry.carbs" @input="updateEntry(entry)">
-                      </label>
-                      <label class="food-field" v-if="showAdvanced">
-                        <span class="food-field__label">脂肪 /100{{ weightUnit(entry) }}</span>
-                        <input class="fat-per-100" type="number" min="0" step="0.1" placeholder="g" v-model.number="entry.fat" @input="updateEntry(entry)">
-                      </label>
                       <output class="row-total">{{ round(entry.amount * entry.calories / 100) }} kcal · 蛋白 {{ round(entry.amount * entry.protein / 100) }} g</output>
                       <button type="button" class="remove-row" @click="removeFood(meal, index)">删除</button>
+                      <div class="food-row__adv" v-if="showAdvanced">
+                        <output class="weight-total">折算 <strong>{{ round(entry.amount) }} {{ weightUnit(entry) }}</strong></output>
+                        <label class="food-field food-field--cal">
+                          <span class="food-field__label">热量 (kcal/100{{ weightUnit(entry) }})</span>
+                          <input class="cal-per-100" type="number" min="0" step="1" placeholder="kcal" v-model.number="entry.calories" @input="updateEntry(entry)">
+                        </label>
+                        <label class="food-field food-field--protein">
+                          <span class="food-field__label">蛋白 (g/100{{ weightUnit(entry) }})</span>
+                          <input class="protein-per-100" type="number" min="0" step="0.1" placeholder="g" v-model.number="entry.protein" @input="updateEntry(entry)">
+                        </label>
+                        <label class="food-field food-field--carbs">
+                          <span class="food-field__label">碳水 (g/100{{ weightUnit(entry) }})</span>
+                          <input class="carbs-per-100" type="number" min="0" step="0.1" placeholder="g" v-model.number="entry.carbs" @input="updateEntry(entry)">
+                        </label>
+                        <label class="food-field food-field--fat">
+                          <span class="food-field__label">脂肪 (g/100{{ weightUnit(entry) }})</span>
+                          <input class="fat-per-100" type="number" min="0" step="0.1" placeholder="g" v-model.number="entry.fat" @input="updateEntry(entry)">
+                        </label>
+                      </div>
                     </div>
                     <div v-if="!currentRecipe.meals[meal] || currentRecipe.meals[meal].length === 0" class="empty" style="padding: 18px;">
                       <div class="empty__icon">＋</div>
@@ -215,6 +218,114 @@
               </div>
             </div>
           </section>
+        </div>
+      </section>
+
+      <!-- ============ 备餐采购 ============ -->
+      <section class="tab-panel" :class="{ active: activeTab === 'prep' }">
+        <div class="prep-layout">
+          <!-- Config -->
+          <div class="card prep-config">
+            <div class="card__head">
+              <h2 class="card__title">🛒 备餐配置</h2>
+              <span class="badge" v-if="prepRecipe">{{ prepSelectedMealCount * Math.max(1, Number(prepDays) || 1) }} 餐</span>
+            </div>
+            <div class="card__body">
+              <label class="field">
+                <span class="field__label">选择菜谱</span>
+                <select class="select" v-model="prepRecipeId">
+                  <option v-for="r in recipes" :key="r.id" :value="r.id">{{ r.name }}</option>
+                </select>
+              </label>
+
+              <label class="field" style="margin-top: 12px;">
+                <span class="field__label">备餐天数</span>
+                <div class="days-control">
+                  <button type="button" class="days-btn" @click="prepDays = Math.max(1, (Number(prepDays)||1) - 1)" aria-label="减少">−</button>
+                  <input class="input days-input" type="number" min="1" max="30" v-model.number="prepDays">
+                  <button type="button" class="days-btn" @click="prepDays = Math.min(30, (Number(prepDays)||1) + 1)" aria-label="增加">+</button>
+                  <span class="muted" style="margin-left: 6px;">天</span>
+                </div>
+              </label>
+
+              <div class="field" style="margin-top: 12px;">
+                <div class="row" style="justify-content: space-between;">
+                  <span class="field__label">备餐餐次</span>
+                  <div class="row" style="gap: 6px;">
+                    <button type="button" class="link-btn" @click="selectAllPrepMeals">全选</button>
+                    <span class="muted">·</span>
+                    <button type="button" class="link-btn" @click="clearPrepMeals">清空</button>
+                  </div>
+                </div>
+                <div class="meal-chips">
+                  <label
+                    v-for="meal in meals"
+                    :key="meal"
+                    class="meal-chip"
+                    :class="{ active: prepMeals[meal] }"
+                  >
+                    <input type="checkbox" v-model="prepMeals[meal]">
+                    <span>{{ meal }}</span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="prep-summary" v-if="prepRecipe">
+                <div class="prep-summary__item">
+                  <span class="muted">总热量</span>
+                  <strong>{{ round(shoppingList.totals.calories) }} kcal</strong>
+                </div>
+                <div class="prep-summary__item">
+                  <span class="muted">蛋白</span>
+                  <strong>{{ round(shoppingList.totals.protein) }} g</strong>
+                </div>
+                <div class="prep-summary__item">
+                  <span class="muted">碳水</span>
+                  <strong>{{ round(shoppingList.totals.carbs) }} g</strong>
+                </div>
+                <div class="prep-summary__item">
+                  <span class="muted">脂肪</span>
+                  <strong>{{ round(shoppingList.totals.fat) }} g</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Shopping list -->
+          <div class="card prep-list">
+            <div class="card__head">
+              <h2 class="card__title">采购清单</h2>
+              <button type="button" class="btn btn-ghost" @click="copyShoppingList" v-if="shoppingList.groups.length">📋 复制清单</button>
+            </div>
+            <div class="card__body">
+              <div v-if="!prepRecipe" class="empty">
+                <div class="empty__icon">🛒</div>
+                <div>请先选择一个菜谱</div>
+              </div>
+              <div v-else-if="!shoppingList.groups.length" class="empty">
+                <div class="empty__icon">🍽️</div>
+                <div>该菜谱在所选餐次没有食物</div>
+              </div>
+              <div v-else class="shop-groups">
+                <section v-for="group in shoppingList.groups" :key="group.category" class="shop-group">
+                  <header class="shop-group__head">
+                    <span class="food-cat-tag">{{ group.category }}</span>
+                    <span class="muted">{{ group.items.length }} 项</span>
+                  </header>
+                  <ul class="shop-list">
+                    <li v-for="item in group.items" :key="item.name + item.unit" class="shop-item">
+                      <div class="shop-item__name">{{ item.name }}</div>
+                      <div class="shop-item__qty">
+                        <strong>{{ round(item.quantity) }} {{ item.unit }}</strong>
+                        <span class="muted" v-if="item.unit !== 'g' && item.unit !== 'ml'">≈ {{ round(item.weight) }} {{ item.weightUnit }}</span>
+                      </div>
+                      <div class="shop-item__macro muted">{{ round(item.calories) }} kcal · 蛋白 {{ round(item.protein) }} g</div>
+                    </li>
+                  </ul>
+                </section>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 

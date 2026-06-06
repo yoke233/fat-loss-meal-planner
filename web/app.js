@@ -350,7 +350,10 @@ createApp({
       currentId: null,
       foodSearch: "",
       targetCalories: 1800,
-      showAdvanced: false
+      showAdvanced: false,
+      prepRecipeId: null,
+      prepDays: 3,
+      prepMeals: { "早餐": true, "午餐": true, "下午加餐": false, "晚餐": true }
     };
   },
   computed: {
@@ -373,6 +376,68 @@ createApp({
     targetPercent() {
       if (!this.targetCalories) return 0;
       return Math.round(this.currentTotals.calories / this.targetCalories * 100);
+    },
+    prepRecipe() {
+      return this.recipes.find((r) => r.id === this.prepRecipeId) ?? this.recipes[0] ?? null;
+    },
+    prepSelectedMealCount() {
+      return MEALS.filter((m) => this.prepMeals[m]).length;
+    },
+    shoppingList() {
+      const recipe = this.prepRecipe;
+      if (!recipe) return { groups: [], totals: { calories: 0, protein: 0, carbs: 0, fat: 0 } };
+      const days = Math.max(1, Number(this.prepDays) || 1);
+      const acc = new Map();
+      const totals = { calories: 0, protein: 0, carbs: 0, fat: 0 };
+      for (const meal of MEALS) {
+        if (!this.prepMeals[meal]) continue;
+        const entries = recipe.meals[meal] || [];
+        for (const entry of entries) {
+          const name = (entry.food || entry.customName || "未命名").trim();
+          const food = FOODS.find((f) => f.name === name);
+          const category = food?.category || "其他";
+          const key = `${category}::${name}::${entry.unit}`;
+          const cur = acc.get(key) || {
+            name,
+            category,
+            unit: entry.unit,
+            quantity: 0,
+            weight: 0,
+            calories: 0,
+            protein: 0,
+            carbs: 0,
+            fat: 0,
+            weightUnit: this.weightUnit(entry)
+          };
+          const factor = days;
+          cur.quantity += (Number(entry.quantity) || 0) * factor;
+          cur.weight += (Number(entry.amount) || 0) * factor;
+          const f100 = (Number(entry.amount) || 0) / 100 * factor;
+          cur.calories += f100 * (Number(entry.calories) || 0);
+          cur.protein += f100 * (Number(entry.protein) || 0);
+          cur.carbs += f100 * (Number(entry.carbs) || 0);
+          cur.fat += f100 * (Number(entry.fat) || 0);
+          totals.calories += f100 * (Number(entry.calories) || 0);
+          totals.protein += f100 * (Number(entry.protein) || 0);
+          totals.carbs += f100 * (Number(entry.carbs) || 0);
+          totals.fat += f100 * (Number(entry.fat) || 0);
+          acc.set(key, cur);
+        }
+      }
+      const grouped = new Map();
+      for (const item of acc.values()) {
+        const list = grouped.get(item.category) || [];
+        list.push(item);
+        grouped.set(item.category, list);
+      }
+      const categoryOrder = ["蛋白质", "主食", "蔬菜", "水果", "饮品", "乳制品", "油脂", "坚果", "其他"];
+      const groups = [...grouped.entries()]
+        .sort((a, b) => categoryOrder.indexOf(a[0]) - categoryOrder.indexOf(b[0]))
+        .map(([category, items]) => ({
+          category,
+          items: items.sort((a, b) => b.weight - a.weight)
+        }));
+      return { groups, totals };
     },
     filteredFoods() {
       const keyword = this.foodSearch.trim().toLowerCase();
@@ -428,11 +493,63 @@ createApp({
       this.showAdvanced = !this.showAdvanced;
       localStorage.setItem(ADVANCED_KEY, this.showAdvanced ? "1" : "0");
     },
+    selectAllPrepMeals() {
+      MEALS.forEach((m) => { this.prepMeals[m] = true; });
+    },
+    clearPrepMeals() {
+      MEALS.forEach((m) => { this.prepMeals[m] = false; });
+    },
+    shoppingListText() {
+      const recipe = this.prepRecipe;
+      if (!recipe) return "";
+      const days = Math.max(1, Number(this.prepDays) || 1);
+      const mealsTxt = MEALS.filter((m) => this.prepMeals[m]).join("、") || "无";
+      const lines = [
+        `【备餐采购清单】${recipe.name}`,
+        `天数：${days} 天 · 餐次：${mealsTxt}`,
+        ""
+      ];
+      for (const group of this.shoppingList.groups) {
+        lines.push(`▌ ${group.category}`);
+        for (const item of group.items) {
+          const qty = round(item.quantity);
+          const weight = round(item.weight);
+          const unit = item.unit;
+          const w = item.weightUnit;
+          const head = unit === "g" || unit === "ml" ? `${qty} ${unit}` : `${qty} ${unit} (${weight} ${w})`;
+          lines.push(`  · ${item.name}　${head}`);
+        }
+        lines.push("");
+      }
+      const t = this.shoppingList.totals;
+      lines.push(`合计：${round(t.calories)} kcal · 蛋白 ${round(t.protein)} g · 碳水 ${round(t.carbs)} g · 脂肪 ${round(t.fat)} g`);
+      return lines.join("\n");
+    },
+    async copyShoppingList() {
+      const text = this.shoppingListText();
+      try {
+        await navigator.clipboard.writeText(text);
+        alert("采购清单已复制到剪贴板");
+      } catch {
+        const textarea = document.createElement("textarea");
+        textarea.value = text;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        try { document.execCommand("copy"); alert("采购清单已复制到剪贴板"); }
+        catch { alert("复制失败，请手动选择文本复制"); }
+        finally { document.body.removeChild(textarea); }
+      }
+    },
     loadRecipes() {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (!saved) {
         this.recipes = BUILT_IN_RECIPES.map(cloneRecipe);
         this.currentId = this.recipes[0]?.id ?? null;
+        if (!this.prepRecipeId || !this.recipes.some((r) => r.id === this.prepRecipeId)) {
+          this.prepRecipeId = this.currentId;
+        }
         this.persist();
         return;
       }
@@ -441,9 +558,15 @@ createApp({
         this.recipes = normalizeRecipes(JSON.parse(saved));
         this.seedBuiltInRecipes();
         this.currentId = this.recipes[0]?.id ?? null;
+        if (!this.prepRecipeId || !this.recipes.some((r) => r.id === this.prepRecipeId)) {
+          this.prepRecipeId = this.currentId;
+        }
       } catch {
         this.recipes = BUILT_IN_RECIPES.map(cloneRecipe);
         this.currentId = this.recipes[0]?.id ?? null;
+        if (!this.prepRecipeId || !this.recipes.some((r) => r.id === this.prepRecipeId)) {
+          this.prepRecipeId = this.currentId;
+        }
         this.persist();
       }
     },
