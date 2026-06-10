@@ -156,7 +156,7 @@ const MACRO_OVERRIDES = {
 };
 
 function createId() {
-  if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+  if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
   return `recipe_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 }
 
@@ -164,16 +164,17 @@ function getFoodMeta(name) {
   const food = FOODS.find((entry) => entry.name === name);
   const override = UNIT_OVERRIDES[name];
   if (override) return override;
-  if (food?.category === "饮品") return { unit: "ml", unitWeight: 1 };
+  if (food && food.category === "饮品") return { unit: "ml", unitWeight: 1 };
   return { unit: "g", unitWeight: 1 };
 }
 
 function getFoodMacros(name) {
-  return MACRO_OVERRIDES[name] ?? { carbs: 0, fat: 0 };
+  return MACRO_OVERRIDES[name] || { carbs: 0, fat: 0 };
 }
 
 function getFoodCategory(name) {
-  return FOODS.find((entry) => entry.name === name)?.category ?? "";
+  const food = FOODS.find((entry) => entry.name === name);
+  return food ? food.category : "";
 }
 
 function clamp(value, min, max) {
@@ -181,14 +182,15 @@ function clamp(value, min, max) {
 }
 
 function normalizeProfile(value) {
+  const source = value || {};
   return {
-    sex: value?.sex === "female" ? "female" : "male",
-    age: clamp(Number(value?.age) || DEFAULT_PROFILE.age, 14, 90),
-    height: clamp(Number(value?.height) || DEFAULT_PROFILE.height, 120, 230),
-    weight: clamp(Number(value?.weight) || DEFAULT_PROFILE.weight, 35, 220),
-    activity: Number(value?.activity) || DEFAULT_PROFILE.activity,
-    deficit: Number(value?.deficit) || DEFAULT_PROFILE.deficit,
-    proteinPerKg: clamp(Number(value?.proteinPerKg) || DEFAULT_PROFILE.proteinPerKg, 1.2, 2.2)
+    sex: source.sex === "female" ? "female" : "male",
+    age: clamp(Number(source.age) || DEFAULT_PROFILE.age, 14, 90),
+    height: clamp(Number(source.height) || DEFAULT_PROFILE.height, 120, 230),
+    weight: clamp(Number(source.weight) || DEFAULT_PROFILE.weight, 35, 220),
+    activity: Number(source.activity) || DEFAULT_PROFILE.activity,
+    deficit: Number(source.deficit) || DEFAULT_PROFILE.deficit,
+    proteinPerKg: clamp(Number(source.proteinPerKg) || DEFAULT_PROFILE.proteinPerKg, 1.2, 2.2)
   };
 }
 
@@ -248,7 +250,7 @@ function inputStepForEntry(entry) {
 function scaleEntryForAdaptation(entry, factor) {
   const meta = entry.food ? getFoodMeta(entry.food) : { unit: entry.unit || "g", unitWeight: 1 };
   const unit = entry.unit || meta.unit;
-  const next = { ...entry };
+  const next = Object.assign({}, entry);
   const scaledQuantity = (Number(entry.quantity) || 0) * factor;
   next.quantity = Math.max(0, roundToStep(scaledQuantity, servingStep(entry)));
   next.amount = amountToWeight(next.quantity, unit, meta);
@@ -272,15 +274,14 @@ function roleProtein(recipe, role) {
 }
 
 function buildAdaptedMeals(recipe, scales) {
-  return Object.fromEntries(
-    MEALS.map((meal) => [
-      meal,
-      (recipe.meals[meal] || []).map((entry) => {
-        const role = getAdaptRole(entry);
-        return role === "fixed" ? { ...entry } : scaleEntryForAdaptation(entry, scales[role] ?? 1);
-      })
-    ])
-  );
+  return MEALS.reduce((meals, meal) => {
+    meals[meal] = (recipe.meals[meal] || []).map((entry) => {
+      const role = getAdaptRole(entry);
+      const scale = scales[role] !== undefined ? scales[role] : 1;
+      return role === "fixed" ? Object.assign({}, entry) : scaleEntryForAdaptation(entry, scale);
+    });
+    return meals;
+  }, {});
 }
 
 function adaptRecipeForProfile(recipe, profileValue) {
@@ -300,12 +301,11 @@ function adaptRecipeForProfile(recipe, profileValue) {
   const vegetableScale = vegetableCalories > 0 ? clamp(1 + (baseScale - 1) * 0.15, 0.9, 1.1) : 1;
   const neededStapleCalories = target - fixedCalories - proteinCalories * proteinScale - vegetableCalories * vegetableScale;
   const stapleScale = stapleCalories > 0 ? clamp(neededStapleCalories / stapleCalories, 0.45, 2.2) : 1;
-  const adapted = {
-    ...baseRecipe,
+  const adapted = Object.assign({}, baseRecipe, {
     id: createId(),
     name: `${baseRecipe.name} - ${Math.round(target / 50) * 50}kcal适配`,
     meals: buildAdaptedMeals(baseRecipe, { protein: proteinScale, staple: stapleScale, vegetable: vegetableScale })
-  };
+  });
   return adapted;
 }
 
@@ -335,8 +335,8 @@ function item(name, quantity) {
     quantity,
     unit: meta.unit,
     amount: amountToWeight(quantity, meta.unit, meta),
-    calories: food?.calories ?? 0,
-    protein: food?.protein ?? 0,
+    calories: food ? food.calories : 0,
+    protein: food ? food.protein : 0,
     carbs: macros.carbs,
     fat: macros.fat
   };
@@ -435,7 +435,10 @@ function emptyRecipe() {
   return {
     id: createId(),
     name: "新菜谱",
-    meals: Object.fromEntries(MEALS.map((meal) => [meal, []]))
+    meals: MEALS.reduce((meals, meal) => {
+      meals[meal] = [];
+      return meals;
+    }, {})
   };
 }
 
@@ -464,12 +467,10 @@ function normalizeRecipes(value) {
   return list.map((recipe) => ({
     id: recipe.id || createId(),
     name: recipe.name || "未命名菜谱",
-    meals: Object.fromEntries(
-      MEALS.map((meal) => [
-        meal,
-        Array.isArray(recipe.meals?.[meal]) ? recipe.meals[meal].map(normalizeItem) : []
-      ])
-    )
+    meals: MEALS.reduce((meals, meal) => {
+      meals[meal] = recipe.meals && Array.isArray(recipe.meals[meal]) ? recipe.meals[meal].map(normalizeItem) : [];
+      return meals;
+    }, {})
   }));
 }
 
@@ -678,7 +679,7 @@ createApp({
   },
   computed: {
     currentRecipe() {
-      return this.recipes.find((recipe) => recipe.id === this.currentId) ?? this.recipes[0] ?? null;
+      return this.recipes.find((recipe) => recipe.id === this.currentId) || this.recipes[0] || null;
     },
     currentTotals() {
       return this.currentRecipe ? calculateRecipe(this.currentRecipe) : { calories: 0, protein: 0, carbs: 0, fat: 0 };
@@ -713,7 +714,7 @@ createApp({
       return this.profileTargets.targetProtein - this.adaptDraftTotals.protein;
     },
     prepRecipe() {
-      return this.recipes.find((r) => r.id === this.prepRecipeId) ?? this.recipes[0] ?? null;
+      return this.recipes.find((r) => r.id === this.prepRecipeId) || this.recipes[0] || null;
     },
     prepSelectedMealCount() {
       return MEALS.filter((m) => this.prepMeals[m]).length;
@@ -730,7 +731,7 @@ createApp({
         for (const entry of entries) {
           const name = (entry.food || entry.customName || "未命名").trim();
           const food = FOODS.find((f) => f.name === name);
-          const category = food?.category || "其他";
+          const category = food ? food.category : "其他";
           const key = `${category}::${name}::${entry.unit}`;
           const cur = acc.get(key) || {
             name,
@@ -857,7 +858,7 @@ createApp({
       if (!this.adaptDraft) return;
       const adapted = cloneRecipe(this.adaptDraft);
       adapted.id = createId();
-      adapted.name = adapted.name.trim() || `${this.currentRecipe?.name || "菜谱"} - 适配`;
+      adapted.name = adapted.name.trim() || `${(this.currentRecipe && this.currentRecipe.name) || "菜谱"} - 适配`;
       this.recipes.push(adapted);
       this.currentId = adapted.id;
       this.adaptDraft = null;
@@ -926,7 +927,7 @@ createApp({
       const saved = localStorage.getItem(STORAGE_KEY);
       if (!saved) {
         this.recipes = BUILT_IN_RECIPES.map(cloneRecipe);
-        this.currentId = this.recipes[0]?.id ?? null;
+        this.currentId = this.recipes[0] ? this.recipes[0].id : null;
         if (!this.prepRecipeId || !this.recipes.some((r) => r.id === this.prepRecipeId)) {
           this.prepRecipeId = this.currentId;
         }
@@ -937,13 +938,13 @@ createApp({
       try {
         this.recipes = normalizeRecipes(JSON.parse(saved));
         this.seedBuiltInRecipes();
-        this.currentId = this.recipes[0]?.id ?? null;
+        this.currentId = this.recipes[0] ? this.recipes[0].id : null;
         if (!this.prepRecipeId || !this.recipes.some((r) => r.id === this.prepRecipeId)) {
           this.prepRecipeId = this.currentId;
         }
       } catch {
         this.recipes = BUILT_IN_RECIPES.map(cloneRecipe);
-        this.currentId = this.recipes[0]?.id ?? null;
+        this.currentId = this.recipes[0] ? this.recipes[0].id : null;
         if (!this.prepRecipeId || !this.recipes.some((r) => r.id === this.prepRecipeId)) {
           this.prepRecipeId = this.currentId;
         }
@@ -974,19 +975,27 @@ createApp({
     deleteCurrentRecipe() {
       if (!this.currentRecipe || !confirm("确定删除当前菜谱？")) return;
       this.recipes = this.recipes.filter((recipe) => recipe.id !== this.currentId);
-      this.currentId = this.recipes[0]?.id ?? null;
+      this.currentId = this.recipes[0] ? this.recipes[0].id : null;
       this.persist();
     },
     exportRecipeImage() {
       if (!this.currentRecipe) return;
       const canvas = renderRecipeImage(this.currentRecipe, this.targetCalories);
+      const fileName = `${sanitizeFileName(this.currentRecipe.name)}.png`;
+      const downloadUrl = (url) => {
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = fileName;
+        link.click();
+      };
+      if (!canvas.toBlob) {
+        downloadUrl(canvas.toDataURL("image/png"));
+        return;
+      }
       canvas.toBlob((blob) => {
         if (!blob) return;
         const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = `${sanitizeFileName(this.currentRecipe.name)}.png`;
-        link.click();
+        downloadUrl(url);
         URL.revokeObjectURL(url);
       }, "image/png");
     },
@@ -1013,7 +1022,7 @@ createApp({
     updateFoodName(entry, typedValue) {
       const selected = FOODS.find((food) => food.name === typedValue.trim());
       const previousFood = entry.food;
-      entry.food = selected?.name || "";
+      entry.food = selected ? selected.name : "";
       entry.customName = selected ? "" : typedValue.trim();
 
       if (selected) {
