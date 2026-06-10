@@ -1,7 +1,31 @@
 const STORAGE_KEY = "fat_loss_recipes_v1";
 const TARGET_KEY = "fat_loss_target_v1";
 const ADVANCED_KEY = "fat_loss_advanced_v1";
+const PROFILE_KEY = "fat_loss_profile_v1";
 const MEALS = ["早餐", "午餐", "下午加餐", "晚餐"];
+
+const DEFAULT_PROFILE = {
+  sex: "male",
+  age: 30,
+  height: 175,
+  weight: 100,
+  activity: 1.375,
+  deficit: 500,
+  proteinPerKg: 1.6
+};
+
+const ACTIVITY_OPTIONS = [
+  { value: 1.2, label: "久坐少动" },
+  { value: 1.375, label: "轻度活动" },
+  { value: 1.55, label: "中等活动" },
+  { value: 1.725, label: "高活动量" }
+];
+
+const DEFICIT_OPTIONS = [
+  { value: 300, label: "轻度减脂" },
+  { value: 500, label: "标准减脂" },
+  { value: 700, label: "快速减脂" }
+];
 
 const FOODS = [
   { category: "蛋白质", name: "鸡蛋", calories: 143, protein: 12.6, note: "约50g/个" },
@@ -146,6 +170,143 @@ function getFoodMeta(name) {
 
 function getFoodMacros(name) {
   return MACRO_OVERRIDES[name] ?? { carbs: 0, fat: 0 };
+}
+
+function getFoodCategory(name) {
+  return FOODS.find((entry) => entry.name === name)?.category ?? "";
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function normalizeProfile(value) {
+  return {
+    sex: value?.sex === "female" ? "female" : "male",
+    age: clamp(Number(value?.age) || DEFAULT_PROFILE.age, 14, 90),
+    height: clamp(Number(value?.height) || DEFAULT_PROFILE.height, 120, 230),
+    weight: clamp(Number(value?.weight) || DEFAULT_PROFILE.weight, 35, 220),
+    activity: Number(value?.activity) || DEFAULT_PROFILE.activity,
+    deficit: Number(value?.deficit) || DEFAULT_PROFILE.deficit,
+    proteinPerKg: clamp(Number(value?.proteinPerKg) || DEFAULT_PROFILE.proteinPerKg, 1.2, 2.2)
+  };
+}
+
+function calculateProfileTargets(profileValue) {
+  const profile = normalizeProfile(profileValue);
+  const base = 10 * profile.weight + 6.25 * profile.height - 5 * profile.age;
+  const bmr = profile.sex === "female" ? base - 161 : base + 5;
+  const maintenance = bmr * profile.activity;
+  const targetCalories = Math.max(1200, maintenance - profile.deficit);
+  const targetProtein = profile.weight * profile.proteinPerKg;
+  return { bmr, maintenance, targetCalories, targetProtein };
+}
+
+function getAdaptRole(entry) {
+  const name = entry.food || "";
+  const category = getFoodCategory(name);
+  if (category === "主食") return "staple";
+  if (category === "蛋白质" && name !== "鸡蛋") return "protein";
+  if (category === "蔬菜") return "vegetable";
+  return "fixed";
+}
+
+function entryCalories(entry) {
+  return (Number(entry.amount) || 0) * (Number(entry.calories) || 0) / 100;
+}
+
+function entryProtein(entry) {
+  return (Number(entry.amount) || 0) * (Number(entry.protein) || 0) / 100;
+}
+
+function roundToStep(value, step) {
+  if (!step) return value;
+  return Math.round(value / step) * step;
+}
+
+function servingStep(entry) {
+  const unit = entry.unit || getFoodMeta(entry.food).unit;
+  if (unit === "个" && entry.food === "鸡蛋") return 1;
+  if (unit === "根") return 0.5;
+  if (unit === "片") return 0.5;
+  if (unit === "g" || unit === "ml") {
+    const role = getAdaptRole(entry);
+    if (role === "protein") return 20;
+    if (role === "staple") return 20;
+    if (role === "vegetable") return 20;
+  }
+  return 1;
+}
+
+function inputStepForEntry(entry) {
+  const unit = entry.unit || getFoodMeta(entry.food).unit;
+  if (unit === "ml") return 50;
+  if (unit === "g") return 5;
+  return 1;
+}
+
+function scaleEntryForAdaptation(entry, factor) {
+  const meta = entry.food ? getFoodMeta(entry.food) : { unit: entry.unit || "g", unitWeight: 1 };
+  const unit = entry.unit || meta.unit;
+  const next = { ...entry };
+  const scaledQuantity = (Number(entry.quantity) || 0) * factor;
+  next.quantity = Math.max(0, roundToStep(scaledQuantity, servingStep(entry)));
+  next.amount = amountToWeight(next.quantity, unit, meta);
+  return next;
+}
+
+function roleCalories(recipe, role) {
+  return MEALS.reduce((total, meal) => {
+    return total + (recipe.meals[meal] || []).reduce((sum, entry) => {
+      return getAdaptRole(entry) === role ? sum + entryCalories(entry) : sum;
+    }, 0);
+  }, 0);
+}
+
+function roleProtein(recipe, role) {
+  return MEALS.reduce((total, meal) => {
+    return total + (recipe.meals[meal] || []).reduce((sum, entry) => {
+      return getAdaptRole(entry) === role ? sum + entryProtein(entry) : sum;
+    }, 0);
+  }, 0);
+}
+
+function buildAdaptedMeals(recipe, scales) {
+  return Object.fromEntries(
+    MEALS.map((meal) => [
+      meal,
+      (recipe.meals[meal] || []).map((entry) => {
+        const role = getAdaptRole(entry);
+        return role === "fixed" ? { ...entry } : scaleEntryForAdaptation(entry, scales[role] ?? 1);
+      })
+    ])
+  );
+}
+
+function adaptRecipeForProfile(recipe, profileValue) {
+  const baseRecipe = cloneRecipe(recipe);
+  const targets = calculateProfileTargets(profileValue);
+  const baseTotals = calculateRecipe(baseRecipe);
+  const target = targets.targetCalories;
+  const stapleCalories = roleCalories(baseRecipe, "staple");
+  const proteinCalories = roleCalories(baseRecipe, "protein");
+  const proteinGrams = roleProtein(baseRecipe, "protein");
+  const vegetableCalories = roleCalories(baseRecipe, "vegetable");
+  const fixedCalories = baseTotals.calories - stapleCalories - proteinCalories - vegetableCalories;
+  const fixedProtein = baseTotals.protein - proteinGrams;
+  const baseScale = baseTotals.calories > 0 ? target / baseTotals.calories : 1;
+  const neededProtein = Math.max(0, targets.targetProtein - fixedProtein);
+  const proteinScale = proteinGrams > 0 ? clamp(neededProtein / proteinGrams, 0.7, 1.6) : 1;
+  const vegetableScale = vegetableCalories > 0 ? clamp(1 + (baseScale - 1) * 0.15, 0.9, 1.1) : 1;
+  const neededStapleCalories = target - fixedCalories - proteinCalories * proteinScale - vegetableCalories * vegetableScale;
+  const stapleScale = stapleCalories > 0 ? clamp(neededStapleCalories / stapleCalories, 0.45, 2.2) : 1;
+  const adapted = {
+    ...baseRecipe,
+    id: createId(),
+    name: `${baseRecipe.name} - ${Math.round(target / 50) * 50}kcal适配`,
+    meals: buildAdaptedMeals(baseRecipe, { protein: proteinScale, staple: stapleScale, vegetable: vegetableScale })
+  };
+  return adapted;
 }
 
 function amountToWeight(quantity, unit, meta) {
@@ -338,6 +499,161 @@ function round(value) {
   return Math.round((Number(value) || 0) * 10) / 10;
 }
 
+function formatServing(entry) {
+  const quantity = round(entry.quantity);
+  const unit = entry.unit || "g";
+  if (unit === "g" || unit === "ml") return `${quantity}${unit}`;
+  const weightUnit = unit === "ml" ? "ml" : "g";
+  return `${quantity}${unit} / ${round(entry.amount)}${weightUnit}`;
+}
+
+function sanitizeFileName(value) {
+  return (value || "减肥餐菜谱").replace(/[\\/:*?"<>|]/g, "_").slice(0, 40);
+}
+
+function drawRoundRect(ctx, x, y, width, height, radius) {
+  const r = Math.min(radius, width / 2, height / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + width, y, x + width, y + height, r);
+  ctx.arcTo(x + width, y + height, x, y + height, r);
+  ctx.arcTo(x, y + height, x, y, r);
+  ctx.arcTo(x, y, x + width, y, r);
+  ctx.closePath();
+}
+
+function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight, maxLines = 2) {
+  const source = String(text || "");
+  let line = "";
+  let lines = 0;
+  for (const char of source) {
+    const test = line + char;
+    if (ctx.measureText(test).width > maxWidth && line) {
+      lines += 1;
+      if (lines >= maxLines) {
+        ctx.fillText(`${line.slice(0, Math.max(1, line.length - 1))}…`, x, y);
+        return y + lineHeight;
+      }
+      ctx.fillText(line, x, y);
+      y += lineHeight;
+      line = char;
+    } else {
+      line = test;
+    }
+  }
+  if (line) ctx.fillText(line, x, y);
+  return y + lineHeight;
+}
+
+function renderRecipeImage(recipe, targetCalories) {
+  const totals = calculateRecipe(recipe);
+  const mealData = MEALS.map((meal) => ({
+    name: meal,
+    items: recipe.meals[meal] || [],
+    totals: calculateMeal(recipe.meals[meal] || [])
+  }));
+  const itemCount = mealData.reduce((sum, meal) => sum + meal.items.length, 0);
+  const width = 1080;
+  const height = Math.max(1320, 560 + MEALS.length * 96 + itemCount * 50);
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+
+  ctx.fillStyle = "#f6f8f4";
+  ctx.fillRect(0, 0, width, height);
+  const gradient = ctx.createLinearGradient(0, 0, width, 360);
+  gradient.addColorStop(0, "#e4f4df");
+  gradient.addColorStop(1, "#f8faf4");
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, width, 360);
+
+  ctx.fillStyle = "#1b2a1f";
+  ctx.font = "800 48px Microsoft YaHei, PingFang SC, Arial";
+  drawWrappedText(ctx, recipe.name, 64, 94, 760, 58, 2);
+  ctx.fillStyle = "#5d6b5f";
+  ctx.font = "600 24px Microsoft YaHei, PingFang SC, Arial";
+  ctx.fillText("每日菜谱分量参考", 66, 190);
+
+  ctx.fillStyle = "#2f9e6b";
+  drawRoundRect(ctx, 790, 64, 226, 118, 28);
+  ctx.fill();
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "700 22px Microsoft YaHei, PingFang SC, Arial";
+  ctx.fillText("总热量", 824, 108);
+  ctx.font = "800 36px Microsoft YaHei, PingFang SC, Arial";
+  ctx.fillText(`${round(totals.calories)} kcal`, 824, 152);
+
+  const macroCards = [
+    { label: "蛋白质", value: `${round(totals.protein)} g`, color: "#2563eb" },
+    { label: "碳水", value: `${round(totals.carbs)} g`, color: "#f59e0b" },
+    { label: "脂肪", value: `${round(totals.fat)} g`, color: "#ef4444" },
+    { label: "目标", value: `${Math.round(targetCalories || 0)} kcal`, color: "#64748b" }
+  ];
+  let x = 64;
+  for (const card of macroCards) {
+    ctx.fillStyle = "#ffffff";
+    drawRoundRect(ctx, x, 238, 226, 118, 24);
+    ctx.fill();
+    ctx.fillStyle = card.color;
+    drawRoundRect(ctx, x, 238, 8, 118, 4);
+    ctx.fill();
+    ctx.fillStyle = "#5d6b5f";
+    ctx.font = "700 22px Microsoft YaHei, PingFang SC, Arial";
+    ctx.fillText(card.label, x + 28, 284);
+    ctx.fillStyle = "#1b2a1f";
+    ctx.font = "800 32px Microsoft YaHei, PingFang SC, Arial";
+    ctx.fillText(card.value, x + 28, 326);
+    x += 248;
+  }
+
+  let y = 420;
+  for (const meal of mealData) {
+    const mealHeight = 78 + Math.max(1, meal.items.length) * 50;
+    ctx.fillStyle = "#ffffff";
+    drawRoundRect(ctx, 64, y, 952, mealHeight, 24);
+    ctx.fill();
+    ctx.fillStyle = "#e6e9e2";
+    ctx.fillRect(96, y + 70, 888, 1);
+    ctx.fillStyle = "#1b2a1f";
+    ctx.font = "800 30px Microsoft YaHei, PingFang SC, Arial";
+    ctx.fillText(meal.name, 96, y + 46);
+    ctx.fillStyle = "#2f9e6b";
+    ctx.font = "800 24px Microsoft YaHei, PingFang SC, Arial";
+    ctx.textAlign = "right";
+    ctx.fillText(`${round(meal.totals.calories)} kcal`, 984, y + 46);
+    ctx.textAlign = "left";
+
+    let itemY = y + 112;
+    ctx.font = "600 24px Microsoft YaHei, PingFang SC, Arial";
+    if (!meal.items.length) {
+      ctx.fillStyle = "#8b9788";
+      ctx.fillText("未添加食物", 96, itemY);
+    } else {
+      for (const entry of meal.items) {
+        const name = entry.food || entry.customName || "未命名食物";
+        ctx.fillStyle = "#1b2a1f";
+        drawWrappedText(ctx, name, 96, itemY, 440, 30, 1);
+        ctx.fillStyle = "#5d6b5f";
+        ctx.textAlign = "right";
+        ctx.fillText(formatServing(entry), 710, itemY);
+        ctx.fillStyle = "#8b9788";
+        ctx.fillText(`${round(entryCalories(entry))} kcal`, 984, itemY);
+        ctx.textAlign = "left";
+        itemY += 50;
+      }
+    }
+    y += mealHeight + 24;
+  }
+
+  ctx.fillStyle = "#8b9788";
+  ctx.font = "600 20px Microsoft YaHei, PingFang SC, Arial";
+  ctx.textAlign = "center";
+  ctx.fillText("减肥餐菜谱 · 由本地菜谱自动生成", width / 2, height - 44);
+  ctx.textAlign = "left";
+  return canvas;
+}
+
 const { createApp } = Vue;
 
 createApp({
@@ -349,8 +665,12 @@ createApp({
       recipes: [],
       currentId: null,
       foodSearch: "",
+      profile: normalizeProfile(DEFAULT_PROFILE),
+      activityOptions: ACTIVITY_OPTIONS,
+      deficitOptions: DEFICIT_OPTIONS,
       targetCalories: 1800,
       showAdvanced: false,
+      adaptDraft: null,
       prepRecipeId: null,
       prepDays: 3,
       prepMeals: { "早餐": true, "午餐": true, "下午加餐": false, "晚餐": true }
@@ -376,6 +696,21 @@ createApp({
     targetPercent() {
       if (!this.targetCalories) return 0;
       return Math.round(this.currentTotals.calories / this.targetCalories * 100);
+    },
+    profileTargets() {
+      return calculateProfileTargets(this.profile);
+    },
+    profileTargetGap() {
+      return this.profileTargets.targetCalories - this.currentTotals.calories;
+    },
+    adaptDraftTotals() {
+      return this.adaptDraft ? calculateRecipe(this.adaptDraft) : { calories: 0, protein: 0, carbs: 0, fat: 0 };
+    },
+    adaptDraftGap() {
+      return this.profileTargets.targetCalories - this.adaptDraftTotals.calories;
+    },
+    adaptProteinGap() {
+      return this.profileTargets.targetProtein - this.adaptDraftTotals.protein;
     },
     prepRecipe() {
       return this.recipes.find((r) => r.id === this.prepRecipeId) ?? this.recipes[0] ?? null;
@@ -453,13 +788,16 @@ createApp({
     this.loadRecipes();
     this.loadTarget();
     this.loadAdvanced();
+    this.loadProfile();
   },
   methods: {
     round,
+    abs: Math.abs,
     calculateMeal,
     calculateRecipe,
     getFoodMeta,
     getFoodMacros,
+    inputStepForEntry,
     weightUnit(entry) {
       const meta = entry.food ? getFoodMeta(entry.food) : null;
       if (meta && meta.unit === "ml") return "ml";
@@ -485,6 +823,48 @@ createApp({
       const value = Number(this.targetCalories) || 1800;
       this.targetCalories = Math.max(500, Math.min(5000, value));
       localStorage.setItem(TARGET_KEY, String(this.targetCalories));
+    },
+    loadProfile() {
+      const saved = localStorage.getItem(PROFILE_KEY);
+      if (!saved) return;
+      try {
+        this.profile = normalizeProfile(JSON.parse(saved));
+      } catch {
+        this.profile = normalizeProfile(DEFAULT_PROFILE);
+      }
+    },
+    persistProfile() {
+      localStorage.setItem(PROFILE_KEY, JSON.stringify(this.profile));
+    },
+    adaptCurrentRecipe() {
+      if (!this.currentRecipe) return;
+      this.profile = normalizeProfile(this.profile);
+      this.targetCalories = Math.round(this.profileTargets.targetCalories / 50) * 50;
+      this.persistProfile();
+      this.persistTarget();
+      this.adaptDraft = adaptRecipeForProfile(this.currentRecipe, this.profile);
+    },
+    updateAdaptDraftEntry(entry) {
+      const meta = entry.food ? getFoodMeta(entry.food) : { unit: entry.unit || "g", unitWeight: 1 };
+      entry.quantity = Number(entry.quantity) || 0;
+      entry.amount = amountToWeight(entry.quantity, entry.unit || meta.unit, meta);
+      entry.calories = Number(entry.calories) || 0;
+      entry.protein = Number(entry.protein) || 0;
+      entry.carbs = Number(entry.carbs) || 0;
+      entry.fat = Number(entry.fat) || 0;
+    },
+    confirmAdaptDraft() {
+      if (!this.adaptDraft) return;
+      const adapted = cloneRecipe(this.adaptDraft);
+      adapted.id = createId();
+      adapted.name = adapted.name.trim() || `${this.currentRecipe?.name || "菜谱"} - 适配`;
+      this.recipes.push(adapted);
+      this.currentId = adapted.id;
+      this.adaptDraft = null;
+      this.persist();
+    },
+    cancelAdaptDraft() {
+      this.adaptDraft = null;
     },
     loadAdvanced() {
       this.showAdvanced = localStorage.getItem(ADVANCED_KEY) === "1";
@@ -596,6 +976,19 @@ createApp({
       this.recipes = this.recipes.filter((recipe) => recipe.id !== this.currentId);
       this.currentId = this.recipes[0]?.id ?? null;
       this.persist();
+    },
+    exportRecipeImage() {
+      if (!this.currentRecipe) return;
+      const canvas = renderRecipeImage(this.currentRecipe, this.targetCalories);
+      canvas.toBlob((blob) => {
+        if (!blob) return;
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `${sanitizeFileName(this.currentRecipe.name)}.png`;
+        link.click();
+        URL.revokeObjectURL(url);
+      }, "image/png");
     },
     addFood(meal) {
       this.currentRecipe.meals[meal].push(item("鸡胸肉", 100));

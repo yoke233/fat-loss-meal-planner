@@ -113,7 +113,10 @@
                   <span class="field__label">菜谱名称</span>
                   <input class="input input--lg" type="text" placeholder="例如：鸡胸土豆减脂餐" v-model="currentRecipe.name" @input="persist">
                 </label>
-                <button type="button" class="btn btn-danger" @click="deleteCurrentRecipe">删除当前</button>
+                <div class="editor-actions">
+                  <button type="button" class="btn btn-line" @click="exportRecipeImage">导出图片</button>
+                  <button type="button" class="btn btn-danger" @click="deleteCurrentRecipe">删除当前</button>
+                </div>
               </div>
 
               <div class="macro-grid">
@@ -157,6 +160,93 @@
                 </button>
               </div>
 
+              <div class="adapt-panel">
+                <div class="adapt-panel__head">
+                  <div>
+                    <h2>人群适配</h2>
+                    <p>先生成预览，主食承担主要热量变化，肉类按蛋白目标调整；自动适配按20g取整，可手动微调后再生成菜谱。</p>
+                  </div>
+                  <button type="button" class="btn btn-primary" @click="adaptCurrentRecipe">生成适配预览</button>
+                </div>
+                <div class="adapt-grid">
+                  <label class="field">
+                    <span class="field__label">性别</span>
+                    <select class="select" v-model="profile.sex" @change="persistProfile">
+                      <option value="male">男</option>
+                      <option value="female">女</option>
+                    </select>
+                  </label>
+                  <label class="field">
+                    <span class="field__label">年龄</span>
+                    <input class="input" type="number" min="14" max="90" step="1" v-model.number="profile.age" @input="persistProfile">
+                  </label>
+                  <label class="field">
+                    <span class="field__label">身高 cm</span>
+                    <input class="input" type="number" min="120" max="230" step="1" v-model.number="profile.height" @input="persistProfile">
+                  </label>
+                  <label class="field">
+                    <span class="field__label">体重 kg</span>
+                    <input class="input" type="number" min="35" max="220" step="0.1" v-model.number="profile.weight" @input="persistProfile">
+                  </label>
+                  <label class="field">
+                    <span class="field__label">活动量</span>
+                    <select class="select" v-model.number="profile.activity" @change="persistProfile">
+                      <option v-for="option in activityOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                    </select>
+                  </label>
+                  <label class="field">
+                    <span class="field__label">减脂速度</span>
+                    <select class="select" v-model.number="profile.deficit" @change="persistProfile">
+                      <option v-for="option in deficitOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                    </select>
+                  </label>
+                  <label class="field">
+                    <span class="field__label">蛋白 g/kg</span>
+                    <input class="input" type="number" min="1.2" max="2.2" step="0.1" v-model.number="profile.proteinPerKg" @input="persistProfile">
+                  </label>
+                </div>
+                <div class="adapt-strip">
+                  <span>基础代谢 {{ round(profileTargets.bmr) }} kcal</span>
+                  <span>维持 {{ round(profileTargets.maintenance) }} kcal</span>
+                  <span>目标 {{ round(profileTargets.targetCalories) }} kcal</span>
+                  <span>蛋白 {{ round(profileTargets.targetProtein) }} g</span>
+                  <strong :class="{ over: profileTargetGap < 0 }">
+                    {{ profileTargetGap >= 0 ? '还差' : '超出' }} {{ round(abs(profileTargetGap)) }} kcal
+                  </strong>
+                </div>
+
+                <div v-if="adaptDraft" class="adapt-preview">
+                  <div class="adapt-preview__head">
+                    <label class="field">
+                      <span class="field__label">预览菜谱名称</span>
+                      <input class="input" type="text" v-model="adaptDraft.name">
+                    </label>
+                    <div class="adapt-preview__actions">
+                      <button type="button" class="btn btn-primary" @click="confirmAdaptDraft">确认生成</button>
+                      <button type="button" class="btn btn-line" @click="cancelAdaptDraft">取消</button>
+                    </div>
+                  </div>
+                  <div class="adapt-strip">
+                    <span>预览 {{ round(adaptDraftTotals.calories) }} kcal</span>
+                    <span>蛋白 {{ round(adaptDraftTotals.protein) }} g</span>
+                    <strong :class="{ over: adaptDraftGap < 0 }">{{ adaptDraftGap >= 0 ? '热量差' : '热量超' }} {{ round(abs(adaptDraftGap)) }} kcal</strong>
+                    <strong :class="{ over: adaptProteinGap > 0 }">{{ adaptProteinGap >= 0 ? '蛋白差' : '蛋白超' }} {{ round(abs(adaptProteinGap)) }} g</strong>
+                  </div>
+                  <div class="adapt-preview__meals">
+                    <section v-for="meal in meals" :key="meal" class="adapt-preview__meal">
+                      <h3>{{ meal }}<span>{{ round(calculateMeal(adaptDraft.meals[meal] || []).calories) }} kcal</span></h3>
+                      <div class="adapt-preview__rows">
+                        <label v-for="(entry, index) in adaptDraft.meals[meal]" :key="index" class="adapt-preview__row">
+                          <span>{{ entry.food || entry.customName }}</span>
+                          <input type="number" min="0" :step="inputStepForEntry(entry)" v-model.number="entry.quantity" @input="updateAdaptDraftEntry(entry)">
+                          <small>{{ entry.unit }} · {{ round(entry.amount * entry.calories / 100) }} kcal</small>
+                        </label>
+                      </div>
+                    </section>
+                  </div>
+                </div>
+              </div>
+
               <div class="meals">
                 <section v-for="meal in meals" :key="meal" class="meal">
                   <div class="meal__head">
@@ -172,7 +262,7 @@
                       </label>
                       <label class="food-field food-field--qty">
                         <span class="food-field__label">数量</span>
-                        <input class="quantity" type="number" min="0" step="0.1" placeholder="数量" v-model.number="entry.quantity" @input="updateEntry(entry)">
+                        <input class="quantity" type="number" min="0" :step="inputStepForEntry(entry)" placeholder="数量" v-model.number="entry.quantity" @input="updateEntry(entry)">
                       </label>
                       <label class="food-field food-field--unit">
                         <span class="food-field__label">单位</span>
